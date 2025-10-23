@@ -1,13 +1,16 @@
-import aiohttp
 import asyncio
-import random
+from typing import Final
 
-PROXY_POOL_API = "http://127.0.0.1:5010/get/"  # 可在config.py中配置
+import aiohttp
 
-async def get_proxy():
-    async with aiohttp.ClientSession() as session:
+PROXY_POOL_API: Final[str] = "http://127.0.0.1:5010/get/"  # 可在config.py中配置
+REQUEST_TIMEOUT: Final[aiohttp.ClientTimeout] = aiohttp.ClientTimeout(total=5)
+
+
+async def get_proxy() -> str | None:
+    async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
         try:
-            async with session.get(PROXY_POOL_API, timeout=5) as resp:
+            async with session.get(PROXY_POOL_API) as resp:
                 if resp.status == 200:
                     proxy = await resp.text()
                     return proxy.strip()
@@ -15,7 +18,10 @@ async def get_proxy():
             return None
     return None
 
-async def get_valid_proxy(test_url="https://movie.douban.com/subject/1291543/"):
+
+async def get_valid_proxy(
+    test_url: str = "https://movie.douban.com/subject/1291543/"
+) -> str | None:
     for _ in range(5):  # 最多尝试5次
         proxy = await get_proxy()
         if not proxy:
@@ -23,8 +29,8 @@ async def get_valid_proxy(test_url="https://movie.douban.com/subject/1291543/"):
             continue
         # 检查代理可用性
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(test_url, proxy=f"http://{proxy}", timeout=5) as resp:
+            async with aiohttp.ClientSession(timeout=REQUEST_TIMEOUT) as session:
+                async with session.get(test_url, proxy=f"http://{proxy}") as resp:
                     if resp.status == 200:
                         return proxy
         except Exception:

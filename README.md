@@ -1,7 +1,7 @@
-# Douban Movie Crawler
+# Douban Movie Crawler & Sina US Stock Crawler
 
 ## 项目简介
-本项目为异步批量爬取豆瓣电影页面（如《功夫》）的爬虫，支持代理IP池、SQLite数据库存储，基于httpx+SQLAlchemy异步ORM实现。
+本项目为异步批量爬取豆瓣电影页面（如《功夫》）和新浪美股网站的爬虫，支持代理IP池、SQLite数据库存储，基于httpx+SQLAlchemy异步ORM实现。
 
 ## 依赖安装
 ```bash
@@ -18,28 +18,41 @@ uv add httpx[http2] beautifulsoup4 sqlalchemy aiosqlite aiohttp
 - 使用SQLite，数据库文件为`movies.db`，表结构见`db.py`。
 
 ## 运行方法
-### 单页爬取
+### 豆瓣电影单页爬取
 ```bash
-uv run python -m crawler.main https://movie.douban.com/subject/1291543/
+uv run main.py https://movie.douban.com/subject/1291543/
 ```
 
-### 批量爬取
+### 豆瓣电影批量爬取
 ```bash
-uv run python -m crawler.main url1 url2 url3 ...
+uv run main.py url1 url2 url3 ...
 ```
 
 ### 关闭代理池（直连模式）
 ```bash
-uv run python -m crawler.main https://movie.douban.com/subject/1291543/ --no-proxy
+uv run main.py https://movie.douban.com/subject/1291543/ --proxy
+```
+
+### 新浪美股数据爬取
+```bash
+uv run main.py --sina-us-stock
+```
+
+### 新浪美股数据爬取（指定URL）
+```bash
+uv run main.py --sina-us-stock --sina-url "https://vip.stock.finance.sina.com.cn/usstock/ustotal.php"
 ```
 
 ## 命令行参数说明
 - `urls`：待爬取的电影页面URL列表，支持多个
-- `--no-proxy`：关闭代理池，直接本地请求（默认使用代理池）
+- `--proxy`：启用代理池；默认使用直连模式
+- `--sina-us-stock`：爬取新浪美股数据
+- `--sina-url`：指定新浪美股数据的URL（默认为https://vip.stock.finance.sina.com.cn/usstock/ustotal.php）
 
 ## 主要文件说明
 - `main.py`：程序入口，批量调度
-- `crawler.py`：爬虫主逻辑，异步并发
+- `crawler.py`：豆瓣电影爬虫主逻辑，异步并发
+- `sina_us_stock.py`：新浪美股爬虫主逻辑
 - `db.py`：数据库ORM模型与操作
 - `proxy_pool.py`：代理池API集成
 - `config.py`：全局配置
@@ -47,4 +60,4 @@ uv run python -m crawler.main https://movie.douban.com/subject/1291543/ --no-pro
 ## 注意事项
 - 豆瓣有反爬机制，建议合理设置并发数与请求间隔
 - 代理池需保证高可用性，否则爬取效率受影响
-- 仅供学习与研究使用，请勿用于非法用途 
+- 仅供学习与研究使用，请勿用于非法用途
