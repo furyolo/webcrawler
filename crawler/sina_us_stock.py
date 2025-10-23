@@ -2,10 +2,9 @@ import httpx
 import asyncio
 from bs4 import BeautifulSoup
 from crawler.proxy_pool import get_valid_proxy
-from crawler.db import add_sina_stock
+from crawler.db import upsert_sina_stocks
 import random
 from fake_useragent import UserAgent
-from crawler.config import CONCURRENT_TASKS
 
 
 async def fetch_sina_us_stock_data(url, use_proxy=True):
@@ -138,28 +137,19 @@ async def save_sina_us_stock_data(stock_data):
     :param stock_data: 股票数据列表
     :return: 保存结果
     """
-    success_count = 0
-    duplicate_count = 0
-    fail_count = 0
-    
-    for stock in stock_data:
-        result = await add_sina_stock(stock)
-        if result == 'success':
-            success_count += 1
-            print(f"[INFO] 成功保存股票数据: {stock['symbol']} - {stock['name']}")
-        elif result == 'duplicate':
-            duplicate_count += 1
-            print(f"[INFO] 股票数据已存在: {stock['symbol']} - {stock['name']}")
-        else:
-            fail_count += 1
-            print(f"[ERROR] 保存股票数据失败: {stock['symbol']} - {stock['name']}")
-    
-    print(f"[INFO] 保存完成 - 成功: {success_count}, 重复: {duplicate_count}, 失败: {fail_count}")
-    return {
-        "success": success_count,
-        "duplicate": duplicate_count,
-        "fail": fail_count
-    }
+    result = await upsert_sina_stocks(stock_data)
+
+    if result["success"]:
+        print(f"[INFO] 成功保存 {result['success']} 条新股票数据")
+    if result["duplicate"]:
+        print(f"[INFO] 更新 {result['duplicate']} 条已有股票数据")
+    if result["fail"]:
+        print(f"[WARN] 跳过 {result['fail']} 条字段不完整的股票数据")
+
+    print(
+        f"[INFO] 保存完成 - 成功: {result['success']}, 重复: {result['duplicate']}, 失败: {result['fail']}"
+    )
+    return result
 
 
 async def crawl_sina_us_stock(url="https://vip.stock.finance.sina.com.cn/usstock/ustotal.php", use_proxy=True):

@@ -1,7 +1,8 @@
 import datetime
-from typing import Any, Literal
+from typing import Any, Literal, Sequence
 
 from sqlalchemy import DateTime, Float, Integer, String, UniqueConstraint, func, select
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
@@ -77,41 +78,79 @@ async def add_movie(movie_data: dict[str, Any]) -> Literal["success", "duplicate
 async def add_sina_stock(
     stock_data: dict[str, Any]
 ) -> Literal["success", "duplicate", "fail"]:
-    async with AsyncSessionLocal() as session:
-        # 首先尝试插入新数据
-        stock = SinaUSStock(**stock_data)
-        session.add(stock)
-        try:
-            await session.commit()
-            return 'success'
-        except Exception as e:
-            await session.rollback()
-            # 处理唯一约束冲突（重复插入）
-            if "UNIQUE constraint failed" in str(e) or "UNIQUE constraint" in str(e):
-                # 如果是唯一约束冲突，尝试更新现有数据
-                try:
-                    result = await session.execute(
-                        select(SinaUSStock).where(SinaUSStock.symbol == stock_data['symbol'])
-                    )
-                    existing_stock = result.scalar_one_or_none()
-                    if existing_stock:
-                        # 更新现有数据
-                        existing_stock.category = stock_data['category']
-                        existing_stock.name = stock_data['name']
-                        existing_stock.update_at = datetime.datetime.now(datetime.UTC)
-                        await session.commit()
-                        return 'duplicate'  # 表示数据已存在但已更新
-                    else:
-                        return 'fail'
-                except Exception as update_e:
-                    await session.rollback()
-                    print(f"[ERROR] 更新股票数据失败: {stock_data['symbol']} - {update_e}")
-                    return 'fail'
-            else:
-                return 'fail'
+    result = await upsert_sina_stocks([stock_data])
+    if result["fail"]:
+        return "fail"
+    if result["success"]:
+        return "success"
+    return "duplicate"
 
 async def get_max_id() -> int:
     async with AsyncSessionLocal() as session:
         result = await session.execute(select(func.max(Movie.id)))
         max_id = result.scalar()
         return max_id or 0
+
+
+async def upsert_sina_stocks(
+    stock_items: Sequence[dict[str, Any]]
+) -> dict[str, int]:
+    """批量插入或更新新浪股票数据，减少数据库往返次数。"""
+    if not stock_items:
+        return {"success": 0, "duplicate": 0, "fail": 0}
+
+    normalized: dict[str, dict[str, Any]] = {}
+    skipped = 0
+    for item in stock_items:
+        symbol = item.get("symbol")
+        category = item.get("category")
+        name = item.get("name")
+        if not symbol or not category or not name:
+            skipped += 1
+            continue
+        normalized[symbol] = {"symbol": symbol, "category": category, "name": name}
+
+    if not normalized:
+        return {"success": 0, "duplicate": 0, "fail": skipped}
+
+    payload = list(normalized.values())
+    symbols = [entry["symbol"] for entry in payload]
+    now = datetime.datetime.now(datetime.UTC)
+
+    async with AsyncSessionLocal() as session:
+        async with session.begin():
+            existing = await session.execute(
+                select(SinaUSStock.symbol).where(SinaUSStock.symbol.in_(symbols))
+            )
+            existing_symbols = set(existing.scalars().all())
+
+            stmt = sqlite_insert(SinaUSStock).values(
+                [
+                    {
+                        "category": entry["category"],
+                        "symbol": entry["symbol"],
+                        "name": entry["name"],
+                        "created_at": now,
+                        "update_at": now,
+                    }
+                    for entry in payload
+                ]
+            )
+            stmt = stmt.on_conflict_do_update(
+                index_elements=[SinaUSStock.symbol],
+                set_={
+                    "category": stmt.excluded.category,
+                    "name": stmt.excluded.name,
+                    "update_at": now,
+                },
+            )
+            await session.execute(stmt)
+
+    success_count = len(payload) - len(existing_symbols)
+    duplicate_count = len(existing_symbols)
+    fail_count = skipped
+    return {
+        "success": success_count,
+        "duplicate": duplicate_count,
+        "fail": fail_count,
+    }
