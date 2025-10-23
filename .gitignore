@@ -1,0 +1,80 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*$py.class
+.mypy_cache/
+
+# Virtual Environment
+.venv/
+venv/
+ENV/
+
+# uv package manager
+.uv-cache/
+uv.lock
+
+# IDEs and editors
+.idea/
+.vscode/
+*.swp
+
+# OS-specific
+.DS_Store
+Thumbs.db
+ehthumbs.db
+desktop.ini
+
+# Environment variables
+.env
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage*
+coverage.xml
+test-results/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+*.manifest
+*.spec
+
+# Jupyter/IPython
+.ipynb_checkpoints/
+
+# Logs
+*.log
+pnpm-debug.log*
+logs/
+data/
+
+# Backup files
+*~
+*.bak
+*.tmp
+
+# Misc
+node_modules/
+memory-bank/*.md.bak
+memory-bank/*.tmp
+tests/__pycache__/
+tests/*.pyc
+tests/*.pyo
+tests/*.pyd
+tests/*$py.class
+
+# Claude
+.claude/
+
+# Serena language server
+.serena/
+
+# Kilo Code
+.kilocode/
+
+# Cunzhi Memory
+.cunzhi-memory/
